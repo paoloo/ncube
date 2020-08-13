@@ -25,7 +25,13 @@ pub trait InvestigationStore {
     ) -> Result<(), DatabaseError>;
     async fn show(&self, slug: &str) -> Result<Option<Investigation>, DatabaseError>;
     async fn list(&self) -> Result<Vec<Investigation>, DatabaseError>;
-    async fn verify_segment(&self) -> Result<(), DatabaseError>;
+    async fn verify_segment(
+        &self,
+        investigation: i32,
+        segment: i32,
+        units: Vec<i32>,
+        state: &serde_json::Value,
+    ) -> Result<(), DatabaseError>;
 }
 
 #[derive(Debug)]
@@ -79,7 +85,7 @@ impl InvestigationStore for InvestigationStoreSqlite {
         Ok(())
     }
 
-    // #[instrument]
+    #[instrument]
     async fn show(&self, slug: &str) -> Result<Option<Investigation>, DatabaseError> {
         let conn = self.db.connection().await?;
         let mut stmt = conn.prepare_cached(include_str!("../sql/investigation/show.sql"))?;
@@ -114,8 +120,32 @@ impl InvestigationStore for InvestigationStoreSqlite {
     }
 
     #[instrument]
-    async fn verify_segment(&self) -> Result<(), DatabaseError> {
-        unimplemented!()
+    async fn verify_segment(
+        &self,
+        investigation: i32,
+        segment: i32,
+        units: Vec<i32>,
+        state: &serde_json::Value,
+    ) -> Result<(), DatabaseError> {
+        let now = Utc::now();
+        let conn = self.db.connection().await?;
+        let mut stmt =
+            conn.prepare_cached(include_str!("../sql/investigation/create_verification.sql"))?;
+
+        conn.execute_batch("BEGIN;")?;
+        for unit in units {
+            stmt.insert(params![
+                &investigation,
+                &segment,
+                &unit,
+                &state,
+                &now.to_rfc3339(),
+                &now.to_rfc3339()
+            ])?;
+        }
+        conn.execute_batch("COMMIT;")?;
+
+        Ok(())
     }
 }
 
@@ -193,7 +223,30 @@ impl InvestigationStore for InvestigationStoreHttp {
     }
 
     #[instrument]
-    async fn verify_segment(&self) -> Result<(), DatabaseError> {
+    async fn verify_segment(
+        &self,
+        investigation: i32,
+        segment: i32,
+        units: Vec<i32>,
+        state: &serde_json::Value,
+    ) -> Result<(), DatabaseError> {
+        // let mut url = self.client.url.clone();
+        // url.set_path(&format!(
+        //     "/api/workspaces/{}/investigations",
+        //     self.client.workspace.slug
+        // ));
+
+        // let payload = VerifySegmentReq {
+        //     segment: title.to_string(),
+        //     description: description.clone(),
+        //     methodology: methodology.to_string(),
+        // };
+
+        // self.client
+        //     .post::<(), VerifySegmentReq>(url, payload)
+        //     .await?;
+
+        // Ok(())
         unimplemented!()
     }
 }
